@@ -1,17 +1,16 @@
 {
   "schemaVersion": 1,
-  "id": "haw-",
+  "id": "haw",
   "version": "${version}",
   "name": "haw-Client",
   "description": "",
   "authors": [],
   "contact": {},
   "license": "All-Rights-Reserved",
-  "icon": "assets/haw-/icon.png",
+  "icon": "assets/haw/icon.png",
   "environment": "client",
   "entrypoints": {
     "fabric-datagen": [
-      "com.client.hawDataGenerator"
     ],
     "client": [
       "com.client.hawClient"
