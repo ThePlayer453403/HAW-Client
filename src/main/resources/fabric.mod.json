@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "id": "haw-",
+  "version": "${version}",
+  "name": "haw-Client",
+  "description": "",
+  "authors": [],
+  "contact": {},
+  "license": "All-Rights-Reserved",
+  "icon": "assets/haw-/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "fabric-datagen": [
+      "com.client.hawDataGenerator"
+    ],
+    "client": [
+      "com.client.hawClient"
+    ],
+    "main": [
+      "com.haw"
+    ]
+  },
+  "mixins": [
+    "haw-.mixins.json",
+    {
+      "config": "haw-.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric-api": "*",
+    "minecraft": "${minecraft_version}"
+  }
+}
