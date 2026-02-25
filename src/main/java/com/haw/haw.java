@@ -1,4 +1,4 @@
-package com;
+package com.haw;
 
 import net.fabricmc.api.ModInitializer;
 

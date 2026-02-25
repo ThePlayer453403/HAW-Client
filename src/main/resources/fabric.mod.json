@@ -3,26 +3,29 @@
   "id": "haw",
   "version": "${version}",
   "name": "haw-Client",
-  "description": "",
-  "authors": [],
-  "contact": {},
-  "license": "All-Rights-Reserved",
+  "description": "为haw添加了一个仅客户端的界面",
+  "authors": ["ThePlayer453403"],
+  "contact": {
+    "sources": "https://github.com/ThePlayer453403/HAW-Client",
+    "issues": "https://github.com/ThePlayer453403/HAW-Client/issues"
+  },
+  "license": "MIT License",
   "icon": "assets/haw/icon.png",
   "environment": "client",
   "entrypoints": {
     "fabric-datagen": [
     ],
     "client": [
-      "com.client.hawClient"
+      "com.haw.client.hawClient"
     ],
     "main": [
-      "com.haw"
+      "com.haw.haw"
     ]
   },
   "mixins": [
-    "haw-.mixins.json",
+    "haw.mixins.json",
     {
-      "config": "haw-.client.mixins.json",
+      "config": "haw.client.mixins.json",
       "environment": "client"
     }
   ],
