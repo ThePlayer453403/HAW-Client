@@ -10,7 +10,7 @@
     "issues": "https://github.com/ThePlayer453403/HAW-Client/issues"
   },
   "license": "MIT License",
-  "icon": "assets/haw/icon.png",
+  "icon": "assets/haw-client/icon.png",
   "environment": "client",
   "entrypoints": {
     "fabric-datagen": [
