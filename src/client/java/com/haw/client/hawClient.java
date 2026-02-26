@@ -233,8 +233,10 @@ public class hawClient implements ClientModInitializer {
             addDrawableChild(switchButton);
 
             reloadButton = ButtonWidget.builder(Text.literal("刷新"), button -> {
-                Objects.requireNonNull(MinecraftClient.getInstance().getNetworkHandler()).sendChatCommand(String.format("%s list", type ? "warp" : "home"));
-                lastRequestTime = -1;
+                if (lastRequestTime != -1) {
+                    Objects.requireNonNull(MinecraftClient.getInstance().getNetworkHandler()).sendChatCommand(String.format("%s list", type ? "warp" : "home"));
+                    lastRequestTime = -1;
+                }
             }).dimensions(this.width - 175, 5, 50, 20).build();
             addDrawableChild(reloadButton);
         }
