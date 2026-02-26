@@ -1,6 +1,9 @@
 package com.haw.client;
 
 
+import com.google.common.reflect.TypeToken;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
@@ -17,22 +20,33 @@ import net.minecraft.client.util.InputUtil;
 import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Objects;
+import java.io.*;
+import java.lang.reflect.Type;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class hawClient implements ClientModInitializer {
-    public static boolean debug = true;
+    public static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    public static boolean debug = false;
     public static boolean type = true;
     public static long lastRequestTime = 0;
     public static int antiSpam = 5000;
+
+    public static File warpNameCacheFile = new File("haw-client", "warp-name.json");
+    public static File warpCommentCacheFile = new File("haw-client", "warp-comment.json");
+    public static File warpCreatTimeCacheFile = new File("haw-client", "warp-time.json");
+    public static File warpFavoriteCacheFile = new File("haw-client", "warp-favorite.json");
+    public static File homeNameCacheFile = new File("haw-client", "home-name.json");
+    public static File homeCommentCacheFile = new File("haw-client", "home-comment.json");
+    public static File homeCreatTimeCacheFile = new File("haw-client", "home-time.json");
+    public static File homeFavoriteCacheFile = new File("haw-client", "home-favorite.json");
+
     public static HashMap<Integer, String> warpName = new HashMap<>();
     public static HashMap<Integer, String> warpComment = new HashMap<>();
     public static HashMap<Integer, String> warpCreateTime = new HashMap<>();
     public static List<String> warpFavorite = new ArrayList<>();
+
     public static HashMap<Integer, String> homeName = new HashMap<>();
     public static HashMap<Integer, String> homeComment = new HashMap<>();
     public static HashMap<Integer, String> homeCreateTime = new HashMap<>();
@@ -40,18 +54,51 @@ public class hawClient implements ClientModInitializer {
     public static HashMap<Integer, String> name = new HashMap<>();
     public static HashMap<Integer, String> comment = new HashMap<>();
     public static HashMap<Integer, String> createTime = new HashMap<>();
+
     public static Pattern patternCurrentPage = Pattern.compile("第(\\d)页");
     public static Pattern patternPageCount = Pattern.compile("共(\\d)页");
     public static KeyBinding keyBinding = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.haw-client.gui", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_R, "category.haw-client"));
 
+    @SuppressWarnings("ResultOfMethodCallIgnored")
     @Override
     public void onInitializeClient() {
+        try {
+            new File("haw-client").mkdirs();
+            warpNameCacheFile.createNewFile();
+            warpCommentCacheFile.createNewFile();
+            warpCreatTimeCacheFile.createNewFile();
+            warpFavoriteCacheFile.createNewFile();
+            homeNameCacheFile.createNewFile();
+            homeCommentCacheFile.createNewFile();
+            homeCreatTimeCacheFile.createNewFile();
+            homeFavoriteCacheFile.createNewFile();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        warpName = loadData(warpNameCacheFile, new TypeToken<Map<Integer, String>>(){}.getType());
+        if (warpName == null) warpName = new HashMap<>();
+        warpComment = loadData(warpCommentCacheFile, new TypeToken<Map<Integer, String>>(){}.getType());
+        if (warpComment == null) warpComment = new HashMap<>();
+        warpCreateTime = loadData(warpCreatTimeCacheFile, new TypeToken<Map<Integer, String>>(){}.getType());
+        if (warpCreateTime == null) warpCreateTime = new HashMap<>();
+        warpFavorite = loadData(warpFavoriteCacheFile, new TypeToken<List<String>>(){}.getType());
+        if (warpFavorite == null) warpFavorite = new ArrayList<>();
+
+        homeName = loadData(homeNameCacheFile, new TypeToken<Map<Integer, String>>(){}.getType());
+        if (homeName == null) homeName = new HashMap<>();
+        homeComment = loadData(homeCommentCacheFile, new TypeToken<Map<Integer, String>>(){}.getType());
+        if (homeComment == null) homeComment = new HashMap<>();
+        homeCreateTime = loadData(homeCreatTimeCacheFile, new TypeToken<Map<Integer, String>>(){}.getType());
+        if (homeCreateTime == null) homeCreateTime = new HashMap<>();
+        homeFavorite = loadData(homeFavoriteCacheFile, new TypeToken<List<String>>(){}.getType());
+        if (homeFavorite == null) homeFavorite = new ArrayList<>();
+
         ClientTickEvents.END_CLIENT_TICK.register(hawClient::tick);
         ClientReceiveMessageEvents.ALLOW_GAME.register(hawClient::message);
     }
 
     public static void tick(MinecraftClient client) {
-        if (client.player == null) {return;}
+        if (client.player == null) return;
         
         if (keyBinding.isPressed()) {
             client.setScreen(new TeleportScreen());
@@ -59,6 +106,15 @@ public class hawClient implements ClientModInitializer {
                 Objects.requireNonNull(client.getNetworkHandler()).sendChatCommand(String.format("%s list", type ? "warp" : "home"));
                 lastRequestTime = -1;
             }
+        }
+    }
+
+    private static <T> T loadData(File file, Type type) {
+        if (!file.exists()) return null;
+        try (Reader reader = new FileReader(file)) {
+            return GSON.fromJson(reader, type);
+        } catch (IOException e) {
+            return null;
         }
     }
 
@@ -100,6 +156,9 @@ public class hawClient implements ClientModInitializer {
                         warpName = name;
                         warpComment = comment;
                         warpCreateTime = createTime;
+                        saveData(warpNameCacheFile, warpName);
+                        saveData(warpCommentCacheFile, warpComment);
+                        saveData(warpCreatTimeCacheFile, warpCreateTime);
                         if (MinecraftClient.getInstance().currentScreen instanceof TeleportScreen) {
                             MinecraftClient.getInstance().setScreen(new TeleportScreen());
                         }
@@ -109,6 +168,9 @@ public class hawClient implements ClientModInitializer {
                         homeName = name;
                         homeComment = comment;
                         homeCreateTime = createTime;
+                        saveData(homeNameCacheFile, homeName);
+                        saveData(homeCommentCacheFile, homeComment);
+                        saveData(homeCreatTimeCacheFile, homeCreateTime);
                         if (MinecraftClient.getInstance().currentScreen instanceof TeleportScreen) {
                             MinecraftClient.getInstance().setScreen(new TeleportScreen());
                         }
@@ -128,9 +190,16 @@ public class hawClient implements ClientModInitializer {
         return true;
     }
 
+    public static void saveData(File file, Object data) {
+        try (Writer writer = new FileWriter(file)) {
+            GSON.toJson(data, writer);
+        } catch (IOException ignored) {}
+    }
+
     public static class TeleportScreen extends Screen {
         public static TeleportList teleportList;
-        public static ButtonWidget buttonWidget;
+        public static ButtonWidget switchButton;
+        public static ButtonWidget reloadButton;
 
         public TeleportScreen() {
             super(Text.empty());
@@ -143,7 +212,7 @@ public class hawClient implements ClientModInitializer {
             addDrawableChild(teleportList);
 
             if (type) {
-                buttonWidget = ButtonWidget.builder(Text.literal("切换至个人传送点 (home)"), button -> {
+                switchButton = ButtonWidget.builder(Text.literal("切换至个人传送点 (home)"), button -> {
                     if (System.currentTimeMillis() - antiSpam > lastRequestTime) {
                         if (client != null) {Objects.requireNonNull(client.getNetworkHandler()).sendChatCommand("home list");}
                         lastRequestTime = -1;
@@ -152,7 +221,7 @@ public class hawClient implements ClientModInitializer {
                     MinecraftClient.getInstance().setScreen(new TeleportScreen());
                 }).dimensions(this.width - 120, 5, 110, 20).build();
             } else {
-                buttonWidget = ButtonWidget.builder(Text.literal("切换至公共传送点 (warp)"), button -> {
+                switchButton = ButtonWidget.builder(Text.literal("切换至公共传送点 (warp)"), button -> {
                     if (System.currentTimeMillis() - antiSpam > lastRequestTime) {
                         if (client != null) {Objects.requireNonNull(client.getNetworkHandler()).sendChatCommand("warp list");}
                         lastRequestTime = -1;
@@ -161,9 +230,21 @@ public class hawClient implements ClientModInitializer {
                     MinecraftClient.getInstance().setScreen(new TeleportScreen());
                 }).dimensions(this.width - 120, 5, 110, 20).build();
             }
-            addDrawableChild(buttonWidget);
+            addDrawableChild(switchButton);
+
+            reloadButton = ButtonWidget.builder(Text.literal("刷新"), button -> {
+                Objects.requireNonNull(MinecraftClient.getInstance().getNetworkHandler()).sendChatCommand(String.format("%s list", type ? "warp" : "home"));
+                lastRequestTime = -1;
+            }).dimensions(this.width - 175, 5, 50, 20).build();
+            addDrawableChild(reloadButton);
         }
 
+        @Override
+        public void close() {
+            saveData(warpFavoriteCacheFile, warpFavorite);
+            saveData(homeFavoriteCacheFile, homeFavorite);
+            super.close();
+        }
     }
 
     public static class TeleportList extends ElementListWidget<TeleportEntry> {
