@@ -201,6 +201,11 @@ public class hawClient implements ClientModInitializer {
         public static ButtonWidget switchButton;
         public static ButtonWidget reloadButton;
 
+        public static ButtonWidget lobbyButton;
+        public static ButtonWidget teyvatButton;
+        public static ButtonWidget shengdianButton;
+        public static ButtonWidget sdmirrorButton;
+
         public TeleportScreen() {
             super(Text.empty());
         }
@@ -239,6 +244,15 @@ public class hawClient implements ClientModInitializer {
                 }
             }).dimensions(this.width - 175, 5, 50, 20).build();
             addDrawableChild(reloadButton);
+
+            lobbyButton = ButtonWidget.builder(Text.literal("登录服务器"), button -> Objects.requireNonNull(MinecraftClient.getInstance().getNetworkHandler()).sendChatCommand("server lobby")).dimensions(this.width - 100, 40, 90, 20).build();
+            addDrawableChild(lobbyButton);
+            teyvatButton = ButtonWidget.builder(Text.literal("提瓦特服务器"), button -> Objects.requireNonNull(MinecraftClient.getInstance().getNetworkHandler()).sendChatCommand("server Teyvat")).dimensions(this.width - 100, 65, 90, 20).build();
+            addDrawableChild(teyvatButton);
+            shengdianButton = ButtonWidget.builder(Text.literal("生电服务器"), button -> Objects.requireNonNull(MinecraftClient.getInstance().getNetworkHandler()).sendChatCommand("server shengdian")).dimensions(this.width - 100, 90, 90, 20).build();
+            addDrawableChild(shengdianButton);
+            sdmirrorButton = ButtonWidget.builder(Text.literal("生电镜像服务器"), button -> Objects.requireNonNull(MinecraftClient.getInstance().getNetworkHandler()).sendChatCommand("server sdmirror")).dimensions(this.width - 100, 115, 90, 20).build();
+            addDrawableChild(sdmirrorButton);
         }
 
         @Override
