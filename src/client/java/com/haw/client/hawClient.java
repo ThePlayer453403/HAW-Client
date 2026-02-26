@@ -213,8 +213,6 @@ public class hawClient implements ClientModInitializer {
         @Override
         public void init() {
             super.init();
-            teleportList = new TeleportList(client, width, height-50, 30, 25, 10);
-            addDrawableChild(teleportList);
 
             if (type) {
                 switchButton = ButtonWidget.builder(Text.literal("切换至个人传送点 (home)"), button -> {
@@ -253,6 +251,10 @@ public class hawClient implements ClientModInitializer {
             addDrawableChild(shengdianButton);
             sdmirrorButton = ButtonWidget.builder(Text.literal("生电镜像服务器"), button -> Objects.requireNonNull(MinecraftClient.getInstance().getNetworkHandler()).sendChatCommand("server sdmirror")).dimensions(this.width - 100, 115, 90, 20).build();
             addDrawableChild(sdmirrorButton);
+
+
+            teleportList = new TeleportList(client, width, height-50, 30, 25, 10);
+            addDrawableChild(teleportList);
         }
 
         @Override
@@ -260,6 +262,17 @@ public class hawClient implements ClientModInitializer {
             saveData(warpFavoriteCacheFile, warpFavorite);
             saveData(homeFavoriteCacheFile, homeFavorite);
             super.close();
+        }
+
+        @Override
+        public void render(DrawContext context, int mouseX, int mouseY, float deltaTicks) {
+            teleportList.render(context, mouseX, mouseY, deltaTicks);
+            reloadButton.render(context, mouseX, mouseY, deltaTicks);
+            switchButton.render(context, mouseX, mouseY, deltaTicks);
+            lobbyButton.render(context, mouseX, mouseY, deltaTicks);
+            teyvatButton.render(context, mouseX, mouseY, deltaTicks);
+            shengdianButton.render(context, mouseX, mouseY, deltaTicks);
+            sdmirrorButton.render(context, mouseX, mouseY, deltaTicks);
         }
     }
 
