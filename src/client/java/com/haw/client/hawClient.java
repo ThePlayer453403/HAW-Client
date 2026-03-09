@@ -59,6 +59,9 @@ public class hawClient implements ClientModInitializer {
     public static Pattern patternPageCount = Pattern.compile("共(\\d)页");
     public static KeyBinding keyBinding = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.haw-client.gui", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_R, "category.haw-client"));
 
+    public static String nextCommand = "";
+    public static Long nextCommandTimer = 0L;
+
     @SuppressWarnings("ResultOfMethodCallIgnored")
     @Override
     public void onInitializeClient() {
@@ -107,6 +110,11 @@ public class hawClient implements ClientModInitializer {
                 lastRequestTime = -1;
             }
         }
+
+        if (!Objects.equals(nextCommand, "") && nextCommandTimer <= System.currentTimeMillis()) {
+            Objects.requireNonNull(client.getNetworkHandler()).sendChatCommand(nextCommand);
+            nextCommand = "";
+        }
     }
 
     private static <T> T loadData(File file, Type type) {
@@ -148,7 +156,8 @@ public class hawClient implements ClientModInitializer {
             }
 
             if (currentPage < maxPage) {
-                Objects.requireNonNull(MinecraftClient.getInstance().getNetworkHandler()).sendChatCommand(String.format("%s list %s", type ? "warp" : "home", currentPage + 1));
+                nextCommand = String.format("%s list %s", type ? "warp" : "home", currentPage + 1);
+                nextCommandTimer = System.currentTimeMillis() + 10;
             } else {
                 lastRequestTime = System.currentTimeMillis();
                 if (type) {
@@ -307,15 +316,25 @@ public class hawClient implements ClientModInitializer {
 
         @Override
         public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickProgress) {
-            context.drawText(MinecraftClient.getInstance().textRenderer, "§e" + id, x, y, 0xFFFFFFFF, true);
-            context.drawText(MinecraftClient.getInstance().textRenderer, "§a" + (type ? warpName : homeName).get(id), x + 10, y, 0xFFFFFFFF, true);
-            if ((type ? warpFavorite : homeFavorite).contains((type ? warpName : homeName).get(id))) {
-                context.drawText(MinecraftClient.getInstance().textRenderer, "§b" + (type ? warpComment : homeComment).get(id), x + 50, y, 0xFFFFFFFF, true);
-            } else {
-                context.drawText(MinecraftClient.getInstance().textRenderer, (type ? warpComment : homeComment).get(id), x + 50, y, 0xFFFFFFFF, true);
+            try {
+                context.drawText(MinecraftClient.getInstance().textRenderer, "§e" + id, x, y, 0xFFFFFFFF, true);
+                context.drawText(MinecraftClient.getInstance().textRenderer, "§a" + (type ? warpName : homeName).get(id), x + 10, y, 0xFFFFFFFF, true);
+                if ((type ? warpFavorite : homeFavorite).contains((type ? warpName : homeName).get(id))) {
+                    context.drawText(MinecraftClient.getInstance().textRenderer, "§b" + (type ? warpComment : homeComment).get(id), x + 50, y, 0xFFFFFFFF, true);
+                } else {
+                    context.drawText(MinecraftClient.getInstance().textRenderer, (type ? warpComment : homeComment).get(id), x + 50, y, 0xFFFFFFFF, true);
+                }
+                context.drawText(MinecraftClient.getInstance().textRenderer, "§7" + (type ? warpCreateTime : homeCreateTime).get(id), x + 200, y, 0xFFFFFFFF, true);
+            } catch (NoSuchMethodError e) {
+                context.drawCenteredTextWithShadow(MinecraftClient.getInstance().textRenderer, "§e" + id, x, y, 0xFFFFFFFF);
+                context.drawCenteredTextWithShadow(MinecraftClient.getInstance().textRenderer, "§a" + (type ? warpName : homeName).get(id), x + 20, y, 0xFFFFFFFF);
+                if ((type ? warpFavorite : homeFavorite).contains((type ? warpName : homeName).get(id))) {
+                    context.drawCenteredTextWithShadow(MinecraftClient.getInstance().textRenderer, "§b" + (type ? warpComment : homeComment).get(id), x + 60, y, 0xFFFFFFFF);
+                } else {
+                    context.drawCenteredTextWithShadow(MinecraftClient.getInstance().textRenderer, (type ? warpComment : homeComment).get(id), x + 60, y, 0xFFFFFFFF);
+                }
+                context.drawCenteredTextWithShadow(MinecraftClient.getInstance().textRenderer, "§7" + (type ? warpCreateTime : homeCreateTime).get(id), x + 200, y, 0xFFFFFFFF);
             }
-            context.drawText(MinecraftClient.getInstance().textRenderer, "§7" + (type ? warpCreateTime : homeCreateTime).get(id), x + 200, y, 0xFFFFFFFF, true);
-
             teleportButton.setX(x + 245);
             teleportButton.setY(y - 5);
             teleportButton.render(context, mouseX, mouseY, tickProgress);
