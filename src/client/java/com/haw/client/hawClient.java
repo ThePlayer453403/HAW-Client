@@ -28,7 +28,7 @@ import java.util.regex.Pattern;
 
 public class hawClient implements ClientModInitializer {
     public static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-    public static boolean debug = false;
+    public static boolean debug = true;
     public static boolean type = true;
     public static long lastRequestTime = 0;
     public static int antiSpam = 5000;
@@ -58,6 +58,9 @@ public class hawClient implements ClientModInitializer {
     public static Pattern patternCurrentPage = Pattern.compile("第(\\d)页");
     public static Pattern patternPageCount = Pattern.compile("共(\\d)页");
     public static KeyBinding keyBinding = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.haw-client.gui", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_R, "category.haw-client"));
+
+    public static String nextCommand = "";
+    public static Long nextCommandTimer = 0L;
 
     @SuppressWarnings("ResultOfMethodCallIgnored")
     @Override
@@ -107,6 +110,11 @@ public class hawClient implements ClientModInitializer {
                 lastRequestTime = -1;
             }
         }
+
+        if (!Objects.equals(nextCommand, "") && nextCommandTimer <= System.currentTimeMillis()) {
+            Objects.requireNonNull(client.getNetworkHandler()).sendChatCommand(nextCommand);
+            nextCommand = "";
+        }
     }
 
     private static <T> T loadData(File file, Type type) {
@@ -148,7 +156,8 @@ public class hawClient implements ClientModInitializer {
             }
 
             if (currentPage < maxPage) {
-                Objects.requireNonNull(MinecraftClient.getInstance().getNetworkHandler()).sendChatCommand(String.format("%s list %s", type ? "warp" : "home", currentPage + 1));
+                nextCommand = String.format("%s list %s", type ? "warp" : "home", currentPage + 1);
+                nextCommandTimer = System.currentTimeMillis() + 10;
             } else {
                 lastRequestTime = System.currentTimeMillis();
                 if (type) {
