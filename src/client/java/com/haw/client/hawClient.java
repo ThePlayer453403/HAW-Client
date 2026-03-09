@@ -28,7 +28,7 @@ import java.util.regex.Pattern;
 
 public class hawClient implements ClientModInitializer {
     public static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-    public static boolean debug = true;
+    public static boolean debug = false;
     public static boolean type = true;
     public static long lastRequestTime = 0;
     public static int antiSpam = 5000;
@@ -343,7 +343,6 @@ public class hawClient implements ClientModInitializer {
 
         @Override
         public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickProgress) {
-//            context.drawCenteredTextWithShadow(MinecraftClient.getInstance().textRenderer, Text.literal("§e" + id), x, y, 0xFFFFFFFF);
             try {
                 context.drawText(MinecraftClient.getInstance().textRenderer, "§e" + id, x, y, 0xFFFFFFFF, true);
                 context.drawText(MinecraftClient.getInstance().textRenderer, "§a" + (type ? warpName : homeName).get(id), x + 10, y, 0xFFFFFFFF, true);
