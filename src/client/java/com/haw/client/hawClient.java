@@ -28,6 +28,7 @@ import java.util.regex.Pattern;
 
 public class hawClient implements ClientModInitializer {
     public static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    public static boolean back = false;
     public static boolean debug = false;
     public static boolean type = true;
     public static long lastRequestTime = 0;
@@ -113,7 +114,12 @@ public class hawClient implements ClientModInitializer {
         }
 
         if (keyBindingBack.isPressed()) {
-            Objects.requireNonNull(client.getNetworkHandler()).sendChatCommand("back");
+            if (!back) {
+                Objects.requireNonNull(client.getNetworkHandler()).sendChatCommand("back");
+                back = true;
+            }
+        } else {
+            back = false;
         }
 
         if (!Objects.equals(nextCommand, "") && nextCommandTimer <= System.currentTimeMillis()) {
