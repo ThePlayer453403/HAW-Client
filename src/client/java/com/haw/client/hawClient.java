@@ -57,7 +57,8 @@ public class hawClient implements ClientModInitializer {
 
     public static Pattern patternCurrentPage = Pattern.compile("第(\\d)页");
     public static Pattern patternPageCount = Pattern.compile("共(\\d)页");
-    public static KeyBinding keyBinding = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.haw-client.gui", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_R, "category.haw-client"));
+    public static KeyBinding keyBindingGUI = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.haw-client.gui", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_R, "category.haw-client"));
+    public static KeyBinding keyBindingBack = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.haw-client.back", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_Z, "category.haw-client"));
 
     public static String nextCommand = "";
     public static Long nextCommandTimer = 0L;
@@ -103,12 +104,16 @@ public class hawClient implements ClientModInitializer {
     public static void tick(MinecraftClient client) {
         if (client.player == null) return;
         
-        if (keyBinding.isPressed()) {
+        if (keyBindingGUI.isPressed()) {
             client.setScreen(new TeleportScreen());
             if (System.currentTimeMillis() - antiSpam > lastRequestTime) {
                 Objects.requireNonNull(client.getNetworkHandler()).sendChatCommand(String.format("%s list", type ? "warp" : "home"));
                 lastRequestTime = -1;
             }
+        }
+
+        if (keyBindingBack.isPressed()) {
+            Objects.requireNonNull(client.getNetworkHandler()).sendChatCommand("back");
         }
 
         if (!Objects.equals(nextCommand, "") && nextCommandTimer <= System.currentTimeMillis()) {
