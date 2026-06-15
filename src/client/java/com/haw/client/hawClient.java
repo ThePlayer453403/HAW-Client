@@ -1,386 +1,46 @@
 package com.haw.client;
 
-
-import com.google.common.reflect.TypeToken;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.Element;
-import net.minecraft.client.gui.Selectable;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.ElementListWidget;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
+import net.minecraft.network.packet.c2s.play.RequestCommandCompletionsC2SPacket;
 import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 
-import java.io.*;
-import java.lang.reflect.Type;
-import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.List;
+import java.util.Objects;
+import java.util.UUID;
 
+@SuppressWarnings("unused")
 public class hawClient implements ClientModInitializer {
-    public static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-    public static boolean back = false;
-    public static boolean debug = false;
-    public static boolean type = true;
-    public static long lastRequestTime = 0;
-    public static int antiSpam = 5000;
+    public static final KeyBinding OpenScreenKeyBinding = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.haw.screen", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_R, "category.haw.client"));
+    
+    public static String mode;
 
-    public static File warpNameCacheFile = new File("haw-client", "warp-name.json");
-    public static File warpCommentCacheFile = new File("haw-client", "warp-comment.json");
-    public static File warpCreatTimeCacheFile = new File("haw-client", "warp-time.json");
-    public static File warpFavoriteCacheFile = new File("haw-client", "warp-favorite.json");
-    public static File homeNameCacheFile = new File("haw-client", "home-name.json");
-    public static File homeCommentCacheFile = new File("haw-client", "home-comment.json");
-    public static File homeCreatTimeCacheFile = new File("haw-client", "home-time.json");
-    public static File homeFavoriteCacheFile = new File("haw-client", "home-favorite.json");
-
-    public static HashMap<Integer, String> warpName = new HashMap<>();
-    public static HashMap<Integer, String> warpComment = new HashMap<>();
-    public static HashMap<Integer, String> warpCreateTime = new HashMap<>();
-    public static List<String> warpFavorite = new ArrayList<>();
-
-    public static HashMap<Integer, String> homeName = new HashMap<>();
-    public static HashMap<Integer, String> homeComment = new HashMap<>();
-    public static HashMap<Integer, String> homeCreateTime = new HashMap<>();
-    public static List<String> homeFavorite = new ArrayList<>();
-    public static HashMap<Integer, String> name = new HashMap<>();
-    public static HashMap<Integer, String> comment = new HashMap<>();
-    public static HashMap<Integer, String> createTime = new HashMap<>();
-
-    public static Pattern patternCurrentPage = Pattern.compile("第(\\d)页");
-    public static Pattern patternPageCount = Pattern.compile("共(\\d)页");
-    public static KeyBinding keyBindingGUI = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.haw-client.gui", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_R, "category.haw-client"));
-    public static KeyBinding keyBindingBack = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.haw-client.back", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_Z, "category.haw-client"));
-
-    public static String nextCommand = "";
-    public static Long nextCommandTimer = 0L;
-
-    @SuppressWarnings("ResultOfMethodCallIgnored")
     @Override
     public void onInitializeClient() {
-        try {
-            new File("haw-client").mkdirs();
-            warpNameCacheFile.createNewFile();
-            warpCommentCacheFile.createNewFile();
-            warpCreatTimeCacheFile.createNewFile();
-            warpFavoriteCacheFile.createNewFile();
-            homeNameCacheFile.createNewFile();
-            homeCommentCacheFile.createNewFile();
-            homeCreatTimeCacheFile.createNewFile();
-            homeFavoriteCacheFile.createNewFile();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        warpName = loadData(warpNameCacheFile, new TypeToken<Map<Integer, String>>(){}.getType());
-        if (warpName == null) warpName = new HashMap<>();
-        warpComment = loadData(warpCommentCacheFile, new TypeToken<Map<Integer, String>>(){}.getType());
-        if (warpComment == null) warpComment = new HashMap<>();
-        warpCreateTime = loadData(warpCreatTimeCacheFile, new TypeToken<Map<Integer, String>>(){}.getType());
-        if (warpCreateTime == null) warpCreateTime = new HashMap<>();
-        warpFavorite = loadData(warpFavoriteCacheFile, new TypeToken<List<String>>(){}.getType());
-        if (warpFavorite == null) warpFavorite = new ArrayList<>();
-
-        homeName = loadData(homeNameCacheFile, new TypeToken<Map<Integer, String>>(){}.getType());
-        if (homeName == null) homeName = new HashMap<>();
-        homeComment = loadData(homeCommentCacheFile, new TypeToken<Map<Integer, String>>(){}.getType());
-        if (homeComment == null) homeComment = new HashMap<>();
-        homeCreateTime = loadData(homeCreatTimeCacheFile, new TypeToken<Map<Integer, String>>(){}.getType());
-        if (homeCreateTime == null) homeCreateTime = new HashMap<>();
-        homeFavorite = loadData(homeFavoriteCacheFile, new TypeToken<List<String>>(){}.getType());
-        if (homeFavorite == null) homeFavorite = new ArrayList<>();
-
-        ClientTickEvents.END_CLIENT_TICK.register(hawClient::tick);
-        ClientReceiveMessageEvents.ALLOW_GAME.register(hawClient::message);
+        ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            while (OpenScreenKeyBinding.wasPressed()) {
+                getCommandSuggestion("home");
+            }
+        });
     }
-
-    public static void tick(MinecraftClient client) {
-        if (client.player == null) return;
-        
-        if (keyBindingGUI.isPressed()) {
-            client.setScreen(new TeleportScreen());
-            if (System.currentTimeMillis() - antiSpam > lastRequestTime) {
-                Objects.requireNonNull(client.getNetworkHandler()).sendChatCommand(String.format("%s list", type ? "warp" : "home"));
-                lastRequestTime = -1;
-            }
-        }
-
-        if (keyBindingBack.isPressed()) {
-            if (!back) {
-                Objects.requireNonNull(client.getNetworkHandler()).sendChatCommand("back");
-                back = true;
-            }
-        } else {
-            back = false;
-        }
-
-        if (!Objects.equals(nextCommand, "") && nextCommandTimer <= System.currentTimeMillis()) {
-            Objects.requireNonNull(client.getNetworkHandler()).sendChatCommand(nextCommand);
-            nextCommand = "";
+    public static void getCommandSuggestionCallback(List<String> message) {
+        if (MinecraftClient.getInstance().player != null) {
+            MinecraftClient.getInstance().player.sendMessage(Text.literal(message.toString()), false);
         }
     }
 
-    private static <T> T loadData(File file, Type type) {
-        if (!file.exists()) return null;
-        try (Reader reader = new FileReader(file)) {
-            return GSON.fromJson(reader, type);
-        } catch (IOException e) {
-            return null;
-        }
-    }
-
-    public static boolean message(Text message, boolean overlay) {
-        if (lastRequestTime != -1) {return true;}
-        String messageContent = message.getString();
-
-        if (messageContent.startsWith("===")) {
-            return debug;
-        } else if (messageContent.startsWith("ID:")) {
-            String[] messageContentPart = messageContent.substring(3).split("\\s");
-            int key = Integer.parseInt(messageContentPart[0]);
-            name.put(key, messageContentPart[1]);
-            comment.put(key, messageContentPart[2]);
-            createTime.put(key, messageContentPart[3]);
-            return debug;
-        } else if (messageContent.startsWith("<上一页>")) {
-            System.out.println(messageContent);
-            int currentPage, maxPage;
-            Matcher currentPageMatcher = patternCurrentPage.matcher(messageContent);
-            if (currentPageMatcher.find()){
-                currentPage = Integer.parseInt(currentPageMatcher.group(1));
-            } else {
-                return debug;
+    public static void getCommandSuggestion(String mode) {
+        if (MinecraftClient.getInstance().player != null) {
+            int requestID = UUID.randomUUID().hashCode();
+            RequestCommandCompletionsC2SPacket requestPacket = new RequestCommandCompletionsC2SPacket(requestID, String.format("/%s look ", mode));
+            if (MinecraftClient.getInstance().getNetworkHandler() != null) {
+                MinecraftClient.getInstance().getNetworkHandler().sendPacket(requestPacket);
             }
-            Matcher maxPageMatcher = patternPageCount.matcher(messageContent);
-            if (maxPageMatcher.find()){
-                maxPage = Integer.parseInt(maxPageMatcher.group(1));
-            } else {
-                return debug;
-            }
-
-            if (currentPage < maxPage) {
-                nextCommand = String.format("%s list %s", type ? "warp" : "home", currentPage + 1);
-                nextCommandTimer = System.currentTimeMillis() + 10;
-            } else {
-                lastRequestTime = System.currentTimeMillis();
-                if (type) {
-                    if (!(name.equals(warpName) && comment.equals(warpComment) && createTime.equals(warpCreateTime))) {
-                        warpName = name;
-                        warpComment = comment;
-                        warpCreateTime = createTime;
-                        saveData(warpNameCacheFile, warpName);
-                        saveData(warpCommentCacheFile, warpComment);
-                        saveData(warpCreatTimeCacheFile, warpCreateTime);
-                        if (MinecraftClient.getInstance().currentScreen instanceof TeleportScreen) {
-                            MinecraftClient.getInstance().setScreen(new TeleportScreen());
-                        }
-                    }
-                } else {
-                    if (!(name.equals(homeName) && comment.equals(homeComment) && createTime.equals(homeCreateTime))) {
-                        homeName = name;
-                        homeComment = comment;
-                        homeCreateTime = createTime;
-                        saveData(homeNameCacheFile, homeName);
-                        saveData(homeCommentCacheFile, homeComment);
-                        saveData(homeCreatTimeCacheFile, homeCreateTime);
-                        if (MinecraftClient.getInstance().currentScreen instanceof TeleportScreen) {
-                            MinecraftClient.getInstance().setScreen(new TeleportScreen());
-                        }
-                    }
-                }
-                name = new HashMap<>();
-                comment = new HashMap<>();
-                createTime = new HashMap<>();
-            }
-            return debug;
-        } else if (messageContent.startsWith("You cannot execute") || messageContent.startsWith("未知或不完整的命令") || messageContent.startsWith("Unknow or incomplete command")) {
-            return debug;
-        } else if (messageContent.contains("<--[") || messageContent.startsWith("您需要先通过验证")) {
-            lastRequestTime = System.currentTimeMillis();
-            return debug;
-        }
-        return true;
-    }
-
-    public static void saveData(File file, Object data) {
-        try (Writer writer = new FileWriter(file)) {
-            GSON.toJson(data, writer);
-        } catch (IOException ignored) {}
-    }
-
-    public static class TeleportScreen extends Screen {
-        public static TeleportList teleportList;
-        public static ButtonWidget switchButton;
-        public static ButtonWidget reloadButton;
-
-        public static ButtonWidget lobbyButton;
-        public static ButtonWidget teyvatButton;
-        public static ButtonWidget shengdianButton;
-        public static ButtonWidget sdmirrorButton;
-
-        public TeleportScreen() {
-            super(Text.empty());
-        }
-
-        @Override
-        public void init() {
-            super.init();
-
-            if (type) {
-                switchButton = ButtonWidget.builder(Text.literal("切换至个人传送点 (home)"), button -> {
-                    if (System.currentTimeMillis() - antiSpam > lastRequestTime) {
-                        if (client != null) {Objects.requireNonNull(client.getNetworkHandler()).sendChatCommand("home list");}
-                        lastRequestTime = -1;
-                    }
-                    type = false;
-                    MinecraftClient.getInstance().setScreen(new TeleportScreen());
-                }).dimensions(this.width - 120, 5, 110, 20).build();
-            } else {
-                switchButton = ButtonWidget.builder(Text.literal("切换至公共传送点 (warp)"), button -> {
-                    if (System.currentTimeMillis() - antiSpam > lastRequestTime) {
-                        if (client != null) {Objects.requireNonNull(client.getNetworkHandler()).sendChatCommand("warp list");}
-                        lastRequestTime = -1;
-                    }
-                    type = true;
-                    MinecraftClient.getInstance().setScreen(new TeleportScreen());
-                }).dimensions(this.width - 120, 5, 110, 20).build();
-            }
-            addDrawableChild(switchButton);
-
-            reloadButton = ButtonWidget.builder(Text.literal("刷新"), button -> {
-                if (lastRequestTime != -1) {
-                    Objects.requireNonNull(MinecraftClient.getInstance().getNetworkHandler()).sendChatCommand(String.format("%s list", type ? "warp" : "home"));
-                    lastRequestTime = -1;
-                }
-            }).dimensions(this.width - 175, 5, 50, 20).build();
-            addDrawableChild(reloadButton);
-
-            lobbyButton = ButtonWidget.builder(Text.literal("登录服务器"), button -> Objects.requireNonNull(MinecraftClient.getInstance().getNetworkHandler()).sendChatCommand("server lobby")).dimensions(this.width - 100, 40, 90, 20).build();
-            addDrawableChild(lobbyButton);
-            teyvatButton = ButtonWidget.builder(Text.literal("提瓦特服务器"), button -> Objects.requireNonNull(MinecraftClient.getInstance().getNetworkHandler()).sendChatCommand("server Teyvat")).dimensions(this.width - 100, 65, 90, 20).build();
-            addDrawableChild(teyvatButton);
-            shengdianButton = ButtonWidget.builder(Text.literal("生电服务器"), button -> Objects.requireNonNull(MinecraftClient.getInstance().getNetworkHandler()).sendChatCommand("server shengdian")).dimensions(this.width - 100, 90, 90, 20).build();
-            addDrawableChild(shengdianButton);
-            sdmirrorButton = ButtonWidget.builder(Text.literal("生电镜像服务器"), button -> Objects.requireNonNull(MinecraftClient.getInstance().getNetworkHandler()).sendChatCommand("server sdmirror")).dimensions(this.width - 100, 115, 90, 20).build();
-            addDrawableChild(sdmirrorButton);
-
-
-            teleportList = new TeleportList(client, width, height-50, 30, 25, 10);
-            addDrawableChild(teleportList);
-        }
-
-        @Override
-        public void close() {
-            saveData(warpFavoriteCacheFile, warpFavorite);
-            saveData(homeFavoriteCacheFile, homeFavorite);
-            super.close();
-        }
-
-        @Override
-        public void render(DrawContext context, int mouseX, int mouseY, float deltaTicks) {
-            teleportList.render(context, mouseX, mouseY, deltaTicks);
-            reloadButton.render(context, mouseX, mouseY, deltaTicks);
-            switchButton.render(context, mouseX, mouseY, deltaTicks);
-            lobbyButton.render(context, mouseX, mouseY, deltaTicks);
-            teyvatButton.render(context, mouseX, mouseY, deltaTicks);
-            shengdianButton.render(context, mouseX, mouseY, deltaTicks);
-            sdmirrorButton.render(context, mouseX, mouseY, deltaTicks);
-        }
-    }
-
-    public static class TeleportList extends ElementListWidget<TeleportEntry> {
-        public TeleportList(MinecraftClient client, int i, int j, int k, int l, int m) {
-            super(client, i, j, k, l, m);
-            System.out.println(type ? warpName : homeName);
-            (type ? warpName : homeName).forEach((key, value) -> {
-                if ((type ? warpFavorite : homeFavorite).contains(value)) {
-                    addEntry(new TeleportEntry(key));
-                }
-            });
-            (type ? warpName : homeName).forEach((key, value) -> {
-                if (!(type ? warpFavorite : homeFavorite).contains(value)) {
-                    addEntry(new TeleportEntry(key));
-                }
-            });
-        }
-
-        @Override
-        public int getRowWidth() {
-            return 320;
-        }
-    }
-
-    public static class TeleportEntry extends ElementListWidget.Entry<TeleportEntry> {
-        public int id;
-        public final ButtonWidget teleportButton;
-        public final ButtonWidget favoriteButton;
-
-        public TeleportEntry(int id) {
-            this.id = id;
-            this.teleportButton = ButtonWidget.builder(Text.literal("传送"), button -> {
-                Objects.requireNonNull(MinecraftClient.getInstance().getNetworkHandler()).sendChatCommand(String.format("%s tp %s", type ? "warp" : "home", (type ? warpName : homeName).get(id)));
-                MinecraftClient.getInstance().setScreen(null);
-            }).dimensions(0, 0, 50, 20).build();
-            if ((type ? warpFavorite : homeFavorite).contains((type ? warpName : homeName).get(id))) {
-                this.favoriteButton = ButtonWidget.builder(Text.literal("★"), button -> {
-                    (type ? warpFavorite : homeFavorite).remove((type ? warpName : homeName).get(id));
-                    MinecraftClient.getInstance().setScreen(new TeleportScreen());
-                }).dimensions(0, 0, 20, 20).build();
-            } else {
-                this.favoriteButton = ButtonWidget.builder(Text.literal("☆"), button -> {
-                    (type ? warpFavorite : homeFavorite).add((type ? warpName : homeName).get(id));
-                    MinecraftClient.getInstance().setScreen(new TeleportScreen());
-                }).dimensions(0, 0, 20, 20).build();
-            }
-        }
-
-        @Override
-        public List<? extends Selectable> selectableChildren() {
-            return List.of();
-        }
-
-        @Override
-        public List<? extends Element> children() {
-            return List.of(this.teleportButton, this.favoriteButton);
-        }
-
-        @Override
-        public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickProgress) {
-            try {
-                context.drawText(MinecraftClient.getInstance().textRenderer, "§e" + id, x, y, 0xFFFFFFFF, true);
-                context.drawText(MinecraftClient.getInstance().textRenderer, "§a" + (type ? warpName : homeName).get(id), x + 10, y, 0xFFFFFFFF, true);
-                if ((type ? warpFavorite : homeFavorite).contains((type ? warpName : homeName).get(id))) {
-                    context.drawText(MinecraftClient.getInstance().textRenderer, "§b" + (type ? warpComment : homeComment).get(id), x + 50, y, 0xFFFFFFFF, true);
-                } else {
-                    context.drawText(MinecraftClient.getInstance().textRenderer, (type ? warpComment : homeComment).get(id), x + 50, y, 0xFFFFFFFF, true);
-                }
-                context.drawText(MinecraftClient.getInstance().textRenderer, "§7" + (type ? warpCreateTime : homeCreateTime).get(id), x + 200, y, 0xFFFFFFFF, true);
-            } catch (NoSuchMethodError e) {
-                context.drawCenteredTextWithShadow(MinecraftClient.getInstance().textRenderer, "§e" + id, x, y, 0xFFFFFFFF);
-                context.drawCenteredTextWithShadow(MinecraftClient.getInstance().textRenderer, "§a" + (type ? warpName : homeName).get(id), x + 20, y, 0xFFFFFFFF);
-                if ((type ? warpFavorite : homeFavorite).contains((type ? warpName : homeName).get(id))) {
-                    context.drawCenteredTextWithShadow(MinecraftClient.getInstance().textRenderer, "§b" + (type ? warpComment : homeComment).get(id), x + 60, y, 0xFFFFFFFF);
-                } else {
-                    context.drawCenteredTextWithShadow(MinecraftClient.getInstance().textRenderer, (type ? warpComment : homeComment).get(id), x + 60, y, 0xFFFFFFFF);
-                }
-                context.drawCenteredTextWithShadow(MinecraftClient.getInstance().textRenderer, "§7" + (type ? warpCreateTime : homeCreateTime).get(id), x + 200, y, 0xFFFFFFFF);
-            }
-
-
-            teleportButton.setX(x + 245);
-            teleportButton.setY(y - 5);
-            teleportButton.render(context, mouseX, mouseY, tickProgress);
-            favoriteButton.setX(x + 300);
-            favoriteButton.setY(y - 5);
-            favoriteButton.render(context, mouseX, mouseY, tickProgress);
         }
     }
 }

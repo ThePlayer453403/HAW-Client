@@ -1,9 +1,10 @@
 {
   "required": true,
   "minVersion": "0.8",
-  "package": "com.mixin.client",
+  "package": "com.haw.client.mixin",
   "compatibilityLevel": "JAVA_21",
   "client": [
+    "ClientPlayNetworkHandlerMixin"
   ],
   "injectors": {
     "defaultRequire": 1
