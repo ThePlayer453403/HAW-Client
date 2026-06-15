@@ -28,6 +28,7 @@ import java.util.regex.Pattern;
 
 public class hawClient implements ClientModInitializer {
     public static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    public static boolean back = false;
     public static boolean debug = false;
     public static boolean type = true;
     public static long lastRequestTime = 0;
@@ -57,7 +58,8 @@ public class hawClient implements ClientModInitializer {
 
     public static Pattern patternCurrentPage = Pattern.compile("第(\\d)页");
     public static Pattern patternPageCount = Pattern.compile("共(\\d)页");
-    public static KeyBinding keyBinding = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.haw-client.gui", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_R, "category.haw-client"));
+    public static KeyBinding keyBindingGUI = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.haw-client.gui", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_R, "category.haw-client"));
+    public static KeyBinding keyBindingBack = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.haw-client.back", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_Z, "category.haw-client"));
 
     public static String nextCommand = "";
     public static Long nextCommandTimer = 0L;
@@ -103,12 +105,21 @@ public class hawClient implements ClientModInitializer {
     public static void tick(MinecraftClient client) {
         if (client.player == null) return;
         
-        if (keyBinding.isPressed()) {
+        if (keyBindingGUI.isPressed()) {
             client.setScreen(new TeleportScreen());
             if (System.currentTimeMillis() - antiSpam > lastRequestTime) {
                 Objects.requireNonNull(client.getNetworkHandler()).sendChatCommand(String.format("%s list", type ? "warp" : "home"));
                 lastRequestTime = -1;
             }
+        }
+
+        if (keyBindingBack.isPressed()) {
+            if (!back) {
+                Objects.requireNonNull(client.getNetworkHandler()).sendChatCommand("back");
+                back = true;
+            }
+        } else {
+            back = false;
         }
 
         if (!Objects.equals(nextCommand, "") && nextCommandTimer <= System.currentTimeMillis()) {
@@ -210,6 +221,11 @@ public class hawClient implements ClientModInitializer {
         public static ButtonWidget switchButton;
         public static ButtonWidget reloadButton;
 
+        public static ButtonWidget lobbyButton;
+        public static ButtonWidget teyvatButton;
+        public static ButtonWidget shengdianButton;
+        public static ButtonWidget sdmirrorButton;
+
         public TeleportScreen() {
             super(Text.empty());
         }
@@ -217,8 +233,6 @@ public class hawClient implements ClientModInitializer {
         @Override
         public void init() {
             super.init();
-            teleportList = new TeleportList(client, width, height-50, 30, 25, 10);
-            addDrawableChild(teleportList);
 
             if (type) {
                 switchButton = ButtonWidget.builder(Text.literal("切换至个人传送点 (home)"), button -> {
@@ -248,6 +262,19 @@ public class hawClient implements ClientModInitializer {
                 }
             }).dimensions(this.width - 175, 5, 50, 20).build();
             addDrawableChild(reloadButton);
+
+            lobbyButton = ButtonWidget.builder(Text.literal("登录服务器"), button -> Objects.requireNonNull(MinecraftClient.getInstance().getNetworkHandler()).sendChatCommand("server lobby")).dimensions(this.width - 100, 40, 90, 20).build();
+            addDrawableChild(lobbyButton);
+            teyvatButton = ButtonWidget.builder(Text.literal("提瓦特服务器"), button -> Objects.requireNonNull(MinecraftClient.getInstance().getNetworkHandler()).sendChatCommand("server Teyvat")).dimensions(this.width - 100, 65, 90, 20).build();
+            addDrawableChild(teyvatButton);
+            shengdianButton = ButtonWidget.builder(Text.literal("生电服务器"), button -> Objects.requireNonNull(MinecraftClient.getInstance().getNetworkHandler()).sendChatCommand("server shengdian")).dimensions(this.width - 100, 90, 90, 20).build();
+            addDrawableChild(shengdianButton);
+            sdmirrorButton = ButtonWidget.builder(Text.literal("生电镜像服务器"), button -> Objects.requireNonNull(MinecraftClient.getInstance().getNetworkHandler()).sendChatCommand("server sdmirror")).dimensions(this.width - 100, 115, 90, 20).build();
+            addDrawableChild(sdmirrorButton);
+
+
+            teleportList = new TeleportList(client, width, height-50, 30, 25, 10);
+            addDrawableChild(teleportList);
         }
 
         @Override
@@ -255,6 +282,17 @@ public class hawClient implements ClientModInitializer {
             saveData(warpFavoriteCacheFile, warpFavorite);
             saveData(homeFavoriteCacheFile, homeFavorite);
             super.close();
+        }
+
+        @Override
+        public void render(DrawContext context, int mouseX, int mouseY, float deltaTicks) {
+            teleportList.render(context, mouseX, mouseY, deltaTicks);
+            reloadButton.render(context, mouseX, mouseY, deltaTicks);
+            switchButton.render(context, mouseX, mouseY, deltaTicks);
+            lobbyButton.render(context, mouseX, mouseY, deltaTicks);
+            teyvatButton.render(context, mouseX, mouseY, deltaTicks);
+            shengdianButton.render(context, mouseX, mouseY, deltaTicks);
+            sdmirrorButton.render(context, mouseX, mouseY, deltaTicks);
         }
     }
 
@@ -335,6 +373,8 @@ public class hawClient implements ClientModInitializer {
                 }
                 context.drawCenteredTextWithShadow(MinecraftClient.getInstance().textRenderer, "§7" + (type ? warpCreateTime : homeCreateTime).get(id), x + 200, y, 0xFFFFFFFF);
             }
+
+
             teleportButton.setX(x + 245);
             teleportButton.setY(y - 5);
             teleportButton.render(context, mouseX, mouseY, tickProgress);
