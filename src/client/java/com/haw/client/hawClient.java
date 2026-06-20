@@ -52,13 +52,11 @@ public class hawClient implements ClientModInitializer {
             TeleportNote = (Map<String, String>) data.get(0);
             TeleportTimestamp = (Map<String, String>) data.get(1);
             FavoriteList = (List<String>) data.get(2);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        } catch (IOException ignored) {}
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (OpenScreenKeyBinding.wasPressed()) {
-                MinecraftClient.getInstance().setScreen(new TeleportScreen());
+                MinecraftClient.getInstance().setScreen(new TeleportScreen(false));
                 getCommandSuggestion("/" + Mode + " look ");
             }
             trySendChatCommand();
@@ -145,20 +143,31 @@ public class hawClient implements ClientModInitializer {
         public ButtonWidget ShengdianButton;
         public ButtonWidget SdmirrorButton;
         public ButtonWidget SwitchButton;
+        public boolean LoadDisplay = true;
 
-        public TeleportScreen() {super(Text.empty());}
+        public TeleportScreen(boolean display) {
+            super(Text.empty());
+            this.LoadDisplay = display;
+        }
+
+        public TeleportScreen() {
+            super(Text.empty());
+        }
+
         protected void init() {
             DisplayList.clear();
-            TeleportList.forEach(name -> {
-                if (FavoriteList.contains(name)) {
-                    DisplayList.add(name);
-                }
-            });
-            TeleportList.forEach(name -> {
-                if (!FavoriteList.contains(name)) {
-                    DisplayList.add(name);
-                }
-            });
+            if (LoadDisplay) {
+                TeleportList.forEach(name -> {
+                    if (FavoriteList.contains(name)) {
+                        DisplayList.add(name);
+                    }
+                });
+                TeleportList.forEach(name -> {
+                    if (!FavoriteList.contains(name)) {
+                        DisplayList.add(name);
+                    }
+                });
+            }
 
             SwitchButton = ButtonWidget.builder(Text.literal(Objects.equals(Mode, "home") ? "切换至公共传送点 (warp)" : "切换至个人传送点 (home)"), button -> {
                 Mode = Objects.equals(Mode, "home") ? "warp" : "home";
