@@ -50,7 +50,6 @@ public class hawClient implements ClientModInitializer {
     private static final File CONFIG_FILE = new File("./config/haw-client.json");
 
     @Override
-    @SuppressWarnings("unchecked")
     public void onInitializeClient() {
         loadConfig();
 
@@ -63,7 +62,6 @@ public class hawClient implements ClientModInitializer {
         });
 
         ClientReceiveMessageEvents.ALLOW_GAME.register((Text message, boolean overlay) -> {
-            System.out.println(message);
             if (ListenToChat) {
                 if (message.contains(Text.literal("=== 共享点详情 ===")) || message.contains(Text.literal("=== 传送点详情 ==="))) {
                     return false;
@@ -139,7 +137,6 @@ public class hawClient implements ClientModInitializer {
     public static void trySendChatCommand() {
         if (MinecraftClient.getInstance().getNetworkHandler() == null) return;
         if (ChatCommandSchedule.isEmpty()) return;
-        System.out.println("Send");
         if (System.currentTimeMillis() - LastCommand > 1000) {
             MinecraftClient.getInstance().getNetworkHandler().sendChatCommand(Mode + " look " + ChatCommandSchedule.getFirst());
             LastCommand = System.currentTimeMillis();
@@ -242,7 +239,7 @@ public class hawClient implements ClientModInitializer {
         public TeleportEntry(int id) {
             ID = id;
             TeleportButton = ButtonWidget.builder(Text.translatable("teleport.haw.client"), button -> {
-                Objects.requireNonNull(MinecraftClient.getInstance().getNetworkHandler()).sendChatCommand(String.format(Mode + " tp %s", DisplayList.get(ID)));
+                Objects.requireNonNull(MinecraftClient.getInstance().getNetworkHandler()).sendChatCommand(String.format("%s tp %s", Mode, DisplayList.get(ID)));
                 MinecraftClient.getInstance().setScreen(null);
             }).dimensions(0, 0, 50, 20).build();
             FavoriteButton = ButtonWidget.builder(Text.translatable(FavoriteList.contains(DisplayList.get(ID)) ? "unfavorite.haw.client" : "favorite.haw.client"), button -> {
