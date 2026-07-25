@@ -1,6 +1,5 @@
 package com.haw.client;
 
-import com.haw.client.object.CommandSuggestionRequest;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.context.CommandContext;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
@@ -11,13 +10,13 @@ import net.minecraft.text.Text;
 public class ModChatCommand {
     public static void register(CommandDispatcher<FabricClientCommandSource> dispatcher, CommandRegistryAccess ignoredRegistryAccess) {
         dispatcher.register(ClientCommandManager.literal("hawc")
-                .then(ClientCommandManager.literal("list").executes(ModChatCommand::test)));
+                .then(ClientCommandManager.literal("waypoint")
+                        .then(ClientCommandManager.literal("files").executes(ModChatCommand::serverWaypointFolder))
+                        .then(ClientCommandManager.literal("list"))));
     }
 
-    public static int test(CommandContext<FabricClientCommandSource> context) {
-        ModDataManagement.commandSuggestionSchedule.add(new CommandSuggestionRequest("warp look", true));
-        ModDataManagement.commandSuggestionSchedule.add(new CommandSuggestionRequest("home look", true));
-        context.getSource().sendFeedback(Text.literal("Hello World"));
+    public static int serverWaypointFolder(CommandContext<FabricClientCommandSource> context) {
+        context.getSource().sendFeedback(Text.literal(ModMapWaypointManagement.getCurrentWaypointFile()));
         return 1;
     }
 }

@@ -29,7 +29,6 @@ public class ClientPlayNetworkMixin {
     @ModifyVariable(method = "sendChatCommand", at = @At("HEAD"), argsOnly = true)
     private String RemoveNoteFromChatCommand(String chatCommand) {
         if (chatCommand.startsWith("warp") || chatCommand.startsWith("home")) {  // 仅处理home或warp
-            //TODO: 增加更新传送点列表功能
             return notePattern.matcher(chatCommand).replaceAll("");
         }
         return chatCommand;

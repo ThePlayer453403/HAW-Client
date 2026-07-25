@@ -3,6 +3,7 @@ package com.haw.client.object;
 public class CommandSuggestionRequest {
     public String chatCommand;
     public boolean outputToChat;
+    public long timestamp;
 
     public CommandSuggestionRequest(String command) {
         this.chatCommand = formatCommmand(command);
