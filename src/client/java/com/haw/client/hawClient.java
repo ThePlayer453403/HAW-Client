@@ -1,7 +1,7 @@
 package com.haw.client;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
@@ -20,13 +20,16 @@ import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 
 import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.lang.reflect.Type;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class hawClient implements ClientModInitializer {
-    public static final KeyBinding OpenScreenKeyBinding = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.haw.screen", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_R, "category.haw.client"));
+    public static final KeyBinding OpenScreenKeyBinding = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.haw.screen", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_R, KeyBinding.Category.GAMEPLAY));
 
     public static Map<String, String> TeleportNote = new HashMap<>();
     public static Map<String, String> TeleportTimestamp = new HashMap<>();
@@ -40,19 +43,16 @@ public class hawClient implements ClientModInitializer {
     public static List<String> TeleportList = new ArrayList<>();
     public static List<String> ChatCommandSchedule = new ArrayList<>();
 
-    public static Pattern TeleportInfo = Pattern.compile("ID:\\d+?\\s(.+?)\\s(.*)\\s(.+\\s.+)");
+    public static Pattern TeleportInfo = Pattern.compile("(.+?) @ .* (\\d+-\\d+-\\d+ \\d+:\\d+:\\d+) - (.+?)$");
+    public static Pattern TeleportInfo_ = Pattern.compile("(.+?) @ .* (\\d+-\\d+-\\d+ \\d+:\\d+:\\d+)");
+
+    private static final Gson GSON = new Gson();
+    private static final File CONFIG_FILE = new File("./config/haw-client.json");
 
     @Override
     @SuppressWarnings("unchecked")
     public void onInitializeClient() {
-        ObjectMapper mapper = new ObjectMapper();
-
-        try {
-            List<Object> data = mapper.readValue(new File("./config/haw-client.json"), new TypeReference<>() {});
-            TeleportNote = (Map<String, String>) data.get(0);
-            TeleportTimestamp = (Map<String, String>) data.get(1);
-            FavoriteList = (List<String>) data.get(2);
-        } catch (IOException ignored) {}
+        loadConfig();
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (OpenScreenKeyBinding.wasPressed()) {
@@ -63,6 +63,7 @@ public class hawClient implements ClientModInitializer {
         });
 
         ClientReceiveMessageEvents.ALLOW_GAME.register((Text message, boolean overlay) -> {
+            System.out.println(message);
             if (ListenToChat) {
                 if (message.contains(Text.literal("=== 共享点详情 ===")) || message.contains(Text.literal("=== 传送点详情 ==="))) {
                     return false;
@@ -70,8 +71,25 @@ public class hawClient implements ClientModInitializer {
                     Matcher matcher = TeleportInfo.matcher(message.getString());
 
                     if (matcher.find() && Objects.equals(matcher.group(1), ChatCommandSchedule.getFirst())) {
-                        TeleportNote.put(ChatCommandSchedule.getFirst(), matcher.group(2));
-                        TeleportTimestamp.put(ChatCommandSchedule.getFirst(), matcher.group(3));
+                        TeleportNote.put(ChatCommandSchedule.getFirst(), matcher.group(3));
+                        TeleportTimestamp.put(ChatCommandSchedule.getFirst(), matcher.group(2));
+
+                        saveTeleportNoteAndTimestamp();
+
+                        ChatCommandSchedule.removeFirst();
+
+                        if (ChatCommandSchedule.isEmpty()) {
+                            ListenToChat = false;
+                        }
+
+                        return false;
+                    }
+
+                    matcher = TeleportInfo_.matcher(message.getString());
+
+                    if (matcher.find() && Objects.equals(matcher.group(1), ChatCommandSchedule.getFirst())) {
+                        TeleportNote.put(ChatCommandSchedule.getFirst(), "");
+                        TeleportTimestamp.put(ChatCommandSchedule.getFirst(), matcher.group(2));
 
                         saveTeleportNoteAndTimestamp();
 
@@ -89,15 +107,30 @@ public class hawClient implements ClientModInitializer {
         });
     }
 
+    @SuppressWarnings("unchecked")
+    private static void loadConfig() {
+        if (!CONFIG_FILE.exists()) return;
+
+        try (FileReader reader = new FileReader(CONFIG_FILE)) {
+            Type type = new TypeToken<List<Object>>() {}.getType();
+            List<Object> data = GSON.fromJson(reader, type);
+
+            if (data != null && data.size() >= 3) {
+                TeleportNote = (Map<String, String>) data.get(0);
+                TeleportTimestamp = (Map<String, String>) data.get(1);
+                FavoriteList = (List<String>) data.get(2);
+            }
+        } catch (IOException ignored) {}
+    }
+
     public static void saveTeleportNoteAndTimestamp() {
         List<Object> data = new ArrayList<>();
         data.add(TeleportNote);
         data.add(TeleportTimestamp);
         data.add(FavoriteList);
 
-        ObjectMapper mapper = new ObjectMapper();
-        try {
-            mapper.writeValue(new File("./config/haw-client.json"), data);
+        try (FileWriter writer = new FileWriter(CONFIG_FILE)) {
+            GSON.toJson(data, writer);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -106,7 +139,7 @@ public class hawClient implements ClientModInitializer {
     public static void trySendChatCommand() {
         if (MinecraftClient.getInstance().getNetworkHandler() == null) return;
         if (ChatCommandSchedule.isEmpty()) return;
-
+        System.out.println("Send");
         if (System.currentTimeMillis() - LastCommand > 1000) {
             MinecraftClient.getInstance().getNetworkHandler().sendChatCommand(Mode + " look " + ChatCommandSchedule.getFirst());
             LastCommand = System.currentTimeMillis();
@@ -234,7 +267,11 @@ public class hawClient implements ClientModInitializer {
         }
 
         @Override
-        public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickProgress) {
+        public void render(DrawContext context, int mouseX, int mouseY, boolean hovered, float deltaTicks) {
+//        public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickProgress) {
+            int x = getX();
+            int y = getY() + 10;
+
             if (ID >= DisplayList.size()) return;
 
             String name = DisplayList.get(ID);
@@ -253,16 +290,16 @@ public class hawClient implements ClientModInitializer {
             }
             TeleportButton.setX(x + 245);
             TeleportButton.setY(y - 5);
-            TeleportButton.render(context, mouseX, mouseY, tickProgress);
+            TeleportButton.render(context, mouseX, mouseY, deltaTicks);
             FavoriteButton.setX(x + 300);
             FavoriteButton.setY(y - 5);
-            FavoriteButton.render(context, mouseX, mouseY, tickProgress);
+            FavoriteButton.render(context, mouseX, mouseY, deltaTicks);
         }
     }
 
     public static class TeleportListWidget extends ElementListWidget<TeleportEntry> {
         public TeleportListWidget(MinecraftClient minecraftClient, int width, int height) {
-            super(minecraftClient, width, height - 50, 30, 25, 10);
+            super(minecraftClient, width, height - 50, 30, 25);//, 10);
 
             for (int i=0; i<DisplayList.size(); i++) {
                 addEntry(new TeleportEntry(i));
