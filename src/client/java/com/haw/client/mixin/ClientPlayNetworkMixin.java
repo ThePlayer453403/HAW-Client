@@ -24,12 +24,14 @@ public class ClientPlayNetworkMixin {
     所以通过mixin将发出的指令「 - 注释」的部分删去，还原正确的指令
      */
     @Unique
-    private static final Pattern notePattern = Pattern.compile(" - .+");
+    private static final Pattern notePattern = Pattern.compile(" - .*");
+    @Unique
+    private static final Pattern dimensionPattern = Pattern.compile("execute\\sin\\s.+?\\srun\\s");
 
     @ModifyVariable(method = "sendChatCommand", at = @At("HEAD"), argsOnly = true)
     private String RemoveNoteFromChatCommand(String chatCommand) {
-        if (chatCommand.startsWith("warp") || chatCommand.startsWith("home")) {  // 仅处理home或warp
-            return notePattern.matcher(chatCommand).replaceAll("");
+        if (chatCommand.contains("warp") || chatCommand.contains("home")) {  // 仅处理home或warp
+            return dimensionPattern.matcher(notePattern.matcher(chatCommand).replaceAll("")).replaceAll("");
         }
         return chatCommand;
     }

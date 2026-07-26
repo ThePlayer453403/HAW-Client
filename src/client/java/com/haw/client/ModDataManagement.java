@@ -1,17 +1,18 @@
 package com.haw.client;
 
 import com.haw.client.object.CommandSuggestionRequest;
+import com.haw.client.object.Waypoint;
+import com.haw.client.object.WaypointInfoRequest;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.ChatScreen;
 import net.minecraft.network.packet.c2s.play.RequestCommandCompletionsC2SPacket;
 import net.minecraft.text.Text;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class ModDataManagement {
-
     /*
     目前从服务器获取数据的方法由两种
     A: 向服务器发送RequestCommandCompletionsC2SPacket，使用mixin获取结果
@@ -23,13 +24,20 @@ public class ModDataManagement {
     public static CommandSuggestionRequest currentSuggestionRequest;
 
     // 记录发送指令的时间，防止被踢
-    public static long lastCommandSent = 0;
-    public static List<String> infoRequestSchedule = new ArrayList<>();
-    public static String currentInfoRequest;
+    public static long lastCommandSentTimeStamp = 0;
+    // 待发送命令
+    public static List<WaypointInfoRequest> infoRequestSchedule = new ArrayList<>();
+    public static WaypointInfoRequest currentInfoRequest;
+
+    public static HashMap<String, Waypoint> warpList = new HashMap<>();
+    public static HashMap<String, Waypoint> homeList = new HashMap<>();
+
+    public static final Pattern pattern = Pattern.compile("(.+)\\s@\\s(.+)\\s([\\d.-]+),\\s([\\d.-]+),\\s([\\d.-]+)\\s.+\\s-\\s(.+)");
+    public static final Pattern patternWithoutNote = Pattern.compile("(.+)\\s@\\s(.+)\\s([\\d.-]+),\\s([\\d.-]+),\\s([\\d.-]+)\\s.+");
 
     public static void sendCommandSuggestionsRequest() {
         // 每5秒自动请求一次更新
-        if (System.currentTimeMillis() - lastUpdatedTime > 5000) {
+        if (System.currentTimeMillis() - lastUpdatedTime > 5000 && commandSuggestionSchedule.isEmpty() && infoRequestSchedule.isEmpty()) {
             lastUpdatedTime = System.currentTimeMillis();
             commandSuggestionSchedule.add(new CommandSuggestionRequest("warp look"));
             commandSuggestionSchedule.add(new CommandSuggestionRequest("home look"));
@@ -57,7 +65,7 @@ public class ModDataManagement {
 
     }
 
-    public static void receiveCommandSuggestions (List<String> suggestions) {
+    public static void receiveCommandSuggestions(List<String> suggestions) {
         // 如果当前没有任务，返回
         if (currentSuggestionRequest == null) {return;}
 
@@ -65,6 +73,70 @@ public class ModDataManagement {
             MinecraftClient.getInstance().player.sendMessage(Text.literal(suggestions.toString()), false);
         }
 
+        if (currentSuggestionRequest.chatCommand.contains("warp")) {
+            suggestions.forEach((name) -> {
+                if (!warpList.containsKey(name)) {
+                    infoRequestSchedule.add(new WaypointInfoRequest("warp", name));
+                }
+            });
+        }
+        if (currentSuggestionRequest.chatCommand.contains("home")) {
+            suggestions.forEach((name) -> {
+                if (!homeList.containsKey(name)) {
+                    infoRequestSchedule.add(new WaypointInfoRequest("home", name));
+                }
+            });
+        }
         currentSuggestionRequest = null;
+    }
+
+    public static void sendChatCommand() {
+        if (System.currentTimeMillis() - lastCommandSentTimeStamp < 1000) {  // 限制执行后等待1s防止被踢
+            return;
+        } else {  // 1s后超时
+            currentInfoRequest = null;
+        }
+        if (!infoRequestSchedule.isEmpty() && MinecraftClient.getInstance().getNetworkHandler() != null) {
+            currentInfoRequest = infoRequestSchedule.removeFirst();
+            MinecraftClient.getInstance().getNetworkHandler().sendChatCommand(String.format("%s look %s", currentInfoRequest.type, currentInfoRequest.name));
+            lastCommandSentTimeStamp = System.currentTimeMillis();
+        }
+    }
+
+    public static boolean receiveChatCommandResult(Text message) {
+        if (currentInfoRequest == null) {return true;}
+        Matcher matcher;
+        Waypoint waypoint;
+        matcher = pattern.matcher(message.getString());
+        if (matcher.find() && Objects.equals(matcher.group(1), currentInfoRequest.name)) {
+            waypoint = new Waypoint(currentInfoRequest.name, matcher.group(6), currentInfoRequest.type, string2int(matcher.group(3)), string2int(matcher.group(4)), string2int(matcher.group(5)), matcher.group(2));
+        } else {
+            matcher = patternWithoutNote.matcher(message.getString());
+            if (matcher.find() && Objects.equals(matcher.group(1), currentInfoRequest.name)) {
+                waypoint = new Waypoint(currentInfoRequest.name, currentInfoRequest.type, string2int(matcher.group(3)), string2int(matcher.group(4)), string2int(matcher.group(5)), matcher.group(2));
+            } else {
+                return true;
+            }
+        }
+
+        if (Objects.equals(currentInfoRequest.type, "warp")) {
+            warpList.put(currentInfoRequest.name, waypoint);
+        } else {
+            homeList.put(currentInfoRequest.name, waypoint);
+        }
+        currentInfoRequest = null;
+        ModMapWaypointManagement.saveWaypointListsToFile(warpList, homeList);
+        return false;
+    }
+
+    public static void clearSchedule() {
+        commandSuggestionSchedule = new ArrayList<>();
+        currentSuggestionRequest = null;
+        infoRequestSchedule = new ArrayList<>();
+        currentInfoRequest = null;
+    }
+
+    public static int string2int(String number) {
+        return (int) Math.round(Double.parseDouble(number));
     }
 }
