@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "id": "haw",
+  "id": "haw-client",
   "version": "${version}",
   "name": "haw-Client",
   "description": "为haw添加了一个仅客户端的界面",

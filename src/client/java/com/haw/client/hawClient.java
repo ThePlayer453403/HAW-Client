@@ -1,11 +1,10 @@
 package com.haw.client;
 
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
+import com.example.haw.TeleportPoint;
+import com.example.haw.client.HomeAndWarpClient;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.Element;
@@ -15,154 +14,84 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.ElementListWidget;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
-import net.minecraft.network.packet.c2s.play.RequestCommandCompletionsC2SPacket;
 import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.IOException;
-import java.lang.reflect.Type;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class hawClient implements ClientModInitializer {
-    public static final KeyBinding OpenScreenKeyBinding = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.haw.screen", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_R, KeyBinding.Category.GAMEPLAY));
+    public static final KeyBinding openScreenKeyBinding = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.haw.screen", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_R, KeyBinding.Category.MISC));
+    public static List<String> favorite = new ArrayList<>();
+    public static boolean type = true;
 
-    public static Map<String, String> TeleportNote = new HashMap<>();
-    public static Map<String, String> TeleportTimestamp = new HashMap<>();
-
-    public static boolean ListenToChat = false;
-    public static long LastCommand = 0;
-    public static String Mode = "warp";
-
-    public static List<String> FavoriteList = new ArrayList<>();
-    public static List<String> DisplayList = new ArrayList<>();
-    public static List<String> TeleportList = new ArrayList<>();
-    public static List<String> ChatCommandSchedule = new ArrayList<>();
-
-    public static Pattern TeleportInfo = Pattern.compile("(.+?) @ .* (\\d+-\\d+-\\d+ \\d+:\\d+:\\d+) - (.+?)$");
-    public static Pattern TeleportInfo_ = Pattern.compile("(.+?) @ .* (\\d+-\\d+-\\d+ \\d+:\\d+:\\d+)");
-
-    private static final Gson GSON = new Gson();
-    private static final File CONFIG_FILE = new File("./config/haw-client.json");
+    public static int i;
 
     @Override
     public void onInitializeClient() {
-        loadConfig();
-
+        loadFavorites();
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            while (OpenScreenKeyBinding.wasPressed()) {
-                MinecraftClient.getInstance().setScreen(new TeleportScreen(false));
-                getCommandSuggestion("/" + Mode + " look ");
+            while (openScreenKeyBinding.wasPressed()) {
+                MinecraftClient.getInstance().setScreen(new TeleportScreen());
             }
-            trySendChatCommand();
         });
+    }
 
-        ClientReceiveMessageEvents.ALLOW_GAME.register((Text message, boolean overlay) -> {
-            if (ListenToChat) {
-                if (message.contains(Text.literal("=== 共享点详情 ===")) || message.contains(Text.literal("=== 传送点详情 ==="))) {
-                    return false;
-                } else {
-                    Matcher matcher = TeleportInfo.matcher(message.getString());
+    public static void saveFavorites() {
+        try {
+            // 获取 Minecraft 配置目录
+            Path configPath = Paths.get(MinecraftClient.getInstance().runDirectory.getAbsolutePath(), "config", "haw");
 
-                    if (matcher.find() && Objects.equals(matcher.group(1), ChatCommandSchedule.getFirst())) {
-                        TeleportNote.put(ChatCommandSchedule.getFirst(), matcher.group(3));
-                        TeleportTimestamp.put(ChatCommandSchedule.getFirst(), matcher.group(2));
+            // 确保目录存在
+            Files.createDirectories(configPath);
 
-                        saveTeleportNoteAndTimestamp();
+            // 构建文件路径
+            Path filePath = configPath.resolve("haw_favorites.txt");
 
-                        ChatCommandSchedule.removeFirst();
-
-                        if (ChatCommandSchedule.isEmpty()) {
-                            ListenToChat = false;
-                        }
-
-                        return false;
-                    }
-
-                    matcher = TeleportInfo_.matcher(message.getString());
-
-                    if (matcher.find() && Objects.equals(matcher.group(1), ChatCommandSchedule.getFirst())) {
-                        TeleportNote.put(ChatCommandSchedule.getFirst(), "");
-                        TeleportTimestamp.put(ChatCommandSchedule.getFirst(), matcher.group(2));
-
-                        saveTeleportNoteAndTimestamp();
-
-                        ChatCommandSchedule.removeFirst();
-
-                        if (ChatCommandSchedule.isEmpty()) {
-                            ListenToChat = false;
-                        }
-
-                        return false;
-                    }
+            // 写入文件
+            try (BufferedWriter writer = Files.newBufferedWriter(filePath)) {
+                for (String name : favorite) {
+                    writer.write(name);
+                    writer.newLine();
                 }
             }
-            return true;
-        });
-    }
-
-    @SuppressWarnings("unchecked")
-    private static void loadConfig() {
-        if (!CONFIG_FILE.exists()) return;
-
-        try (FileReader reader = new FileReader(CONFIG_FILE)) {
-            Type type = new TypeToken<List<Object>>() {}.getType();
-            List<Object> data = GSON.fromJson(reader, type);
-
-            if (data != null && data.size() >= 3) {
-                TeleportNote = (Map<String, String>) data.get(0);
-                TeleportTimestamp = (Map<String, String>) data.get(1);
-                FavoriteList = (List<String>) data.get(2);
-            }
-        } catch (IOException ignored) {}
-    }
-
-    public static void saveTeleportNoteAndTimestamp() {
-        List<Object> data = new ArrayList<>();
-        data.add(TeleportNote);
-        data.add(TeleportTimestamp);
-        data.add(FavoriteList);
-
-        try (FileWriter writer = new FileWriter(CONFIG_FILE)) {
-            GSON.toJson(data, writer);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException();
         }
     }
 
-    public static void trySendChatCommand() {
-        if (MinecraftClient.getInstance().getNetworkHandler() == null) return;
-        if (ChatCommandSchedule.isEmpty()) return;
-        if (System.currentTimeMillis() - LastCommand > 1000) {
-            MinecraftClient.getInstance().getNetworkHandler().sendChatCommand(Mode + " look " + ChatCommandSchedule.getFirst());
-            LastCommand = System.currentTimeMillis();
-            ListenToChat = true;
-        }
-    }
+    public static void loadFavorites() {
+        try {
+            // 获取 Minecraft 配置目录
+            Path configPath = Paths.get(MinecraftClient.getInstance().runDirectory.getAbsolutePath(), "config", "haw");
 
-    public static void getCommandSuggestionCallback(List<String> message) {
-        if (ChatCommandSchedule.isEmpty()) {
-            message.forEach(name -> {
-                if (!TeleportNote.containsKey(name)) {
-                    ChatCommandSchedule.add(name);
-                }
-            });
-        }
-        TeleportList = message;
-        MinecraftClient.getInstance().setScreen(new TeleportScreen());
-    }
+            // 构建文件路径
+            Path filePath = configPath.resolve("haw_favorites.txt");
 
-    public static void getCommandSuggestion(String command) {
-        if (MinecraftClient.getInstance().player != null) {
-            int requestID = UUID.randomUUID().hashCode();
-            RequestCommandCompletionsC2SPacket requestPacket = new RequestCommandCompletionsC2SPacket(requestID, command);
-            if (MinecraftClient.getInstance().getNetworkHandler() != null) {
-                MinecraftClient.getInstance().getNetworkHandler().sendPacket(requestPacket);
+            // 如果文件不存在，直接返回
+            if (!Files.exists(filePath)) {
+                return;
             }
+
+            // 清空当前列表
+            favorite.clear();
+
+            // 读取文件
+            try (BufferedReader reader = Files.newBufferedReader(filePath)) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (!line.trim().isEmpty()) {
+                        favorite.add(line.trim());
+                    }
+                }
+            }
+        } catch (IOException e) {
+            System.err.println("Failed to load favorites: " + e.getMessage());
         }
     }
 
@@ -173,37 +102,14 @@ public class hawClient implements ClientModInitializer {
         public ButtonWidget ShengdianButton;
         public ButtonWidget SdmirrorButton;
         public ButtonWidget SwitchButton;
-        public boolean LoadDisplay = true;
-
-        public TeleportScreen(boolean display) {
-            super(Text.empty());
-            this.LoadDisplay = display;
-        }
 
         public TeleportScreen() {
             super(Text.empty());
         }
 
         protected void init() {
-            DisplayList.clear();
-            if (LoadDisplay) {
-                TeleportList.forEach(name -> {
-                    if (FavoriteList.contains(name)) {
-                        DisplayList.add(name);
-                    }
-                });
-                TeleportList.forEach(name -> {
-                    if (!FavoriteList.contains(name)) {
-                        DisplayList.add(name);
-                    }
-                });
-            }
 
-            SwitchButton = ButtonWidget.builder(Text.literal(Objects.equals(Mode, "home") ? "切换至公共传送点 (warp)" : "切换至个人传送点 (home)"), button -> {
-                Mode = Objects.equals(Mode, "home") ? "warp" : "home";
-                MinecraftClient.getInstance().setScreen(new TeleportScreen());
-                getCommandSuggestion("/" + Mode + " look ");
-            }).dimensions(this.width - 120, 5, 110, 20).build();
+            SwitchButton = ButtonWidget.builder(Text.literal(type ? "切换至公共传送点 (warp)" : "切换至个人传送点 (home)"), button -> type = !type).dimensions(this.width - 120, 5, 110, 20).build();
             addDrawableChild(SwitchButton);
 
             LobbyButton = ButtonWidget.builder(Text.literal("登录服务器"), button -> Objects.requireNonNull(MinecraftClient.getInstance().getNetworkHandler()).sendChatCommand("server lobby")).dimensions(this.width - 100, 40, 90, 20).build();
@@ -236,19 +142,27 @@ public class hawClient implements ClientModInitializer {
         public int ID;
         public ButtonWidget TeleportButton;
         public ButtonWidget FavoriteButton;
-        public TeleportEntry(int id) {
-            ID = id;
+
+        public String name;
+        public TeleportPoint teleportPoint;
+
+        public TeleportEntry(int ID, String name, TeleportPoint teleportPoint) {
+            this.ID = ID;
+            this.name = name;
+            this.teleportPoint = teleportPoint;
+
             TeleportButton = ButtonWidget.builder(Text.translatable("teleport.haw.client"), button -> {
-                Objects.requireNonNull(MinecraftClient.getInstance().getNetworkHandler()).sendChatCommand(String.format("%s tp %s", Mode, DisplayList.get(ID)));
+                Objects.requireNonNull(MinecraftClient.getInstance().getNetworkHandler()).sendChatCommand(String.format("%s tp %s", type ? "warp" : "home", teleportPoint.name));
                 MinecraftClient.getInstance().setScreen(null);
             }).dimensions(0, 0, 50, 20).build();
-            FavoriteButton = ButtonWidget.builder(Text.translatable(FavoriteList.contains(DisplayList.get(ID)) ? "unfavorite.haw.client" : "favorite.haw.client"), button -> {
-                if (FavoriteList.contains(DisplayList.get(ID))) {
-                    FavoriteList.remove(DisplayList.get(ID));
+
+            FavoriteButton = ButtonWidget.builder(Text.translatable(favorite.contains(teleportPoint.name) ? "unfavorite.haw.client" : "favorite.haw.client"), button -> {
+                if (favorite.contains(teleportPoint.name)) {
+                    favorite.remove(teleportPoint.name);
                 } else  {
-                    FavoriteList.add(DisplayList.get(ID));
+                    favorite.add(teleportPoint.name);
                 }
-                saveTeleportNoteAndTimestamp();
+                saveFavorites();
                 MinecraftClient.getInstance().setScreen(new TeleportScreen());
             }).dimensions(0, 0, 20, 20).build();
         }
@@ -269,21 +183,16 @@ public class hawClient implements ClientModInitializer {
             int x = getX();
             int y = getY() + 10;
 
-            if (ID >= DisplayList.size()) return;
-
-            String name = DisplayList.get(ID);
-            String note = TeleportNote.getOrDefault(name, "Loading...");
-            String timestamp = TeleportTimestamp.getOrDefault(name, "Loading...");
             try {
-                context.drawText(MinecraftClient.getInstance().textRenderer, "§e" + (ID+1), x, y, 0xFFFFFFFF, true);
+                context.drawText(MinecraftClient.getInstance().textRenderer, "§e" + ID, x, y, 0xFFFFFFFF, true);
                 context.drawText(MinecraftClient.getInstance().textRenderer, "§a" + name, x + 10, y, 0xFFFFFFFF, true);
-                context.drawText(MinecraftClient.getInstance().textRenderer, FavoriteList.contains(name) ? "§b" + note : note, x + 50, y, 0xFFFFFFFF, true);
-                context.drawText(MinecraftClient.getInstance().textRenderer, "§7" + timestamp, x + 175, y, 0xFFFFFFFF, true);
+                context.drawText(MinecraftClient.getInstance().textRenderer, (favorite.contains(name) ? "§b" : "") + teleportPoint.note, x + 50, y, 0xFFFFFFFF, true);
+                context.drawText(MinecraftClient.getInstance().textRenderer, "§7" + teleportPoint.createdAt, x + 175, y, 0xFFFFFFFF, true);
             } catch (NoSuchMethodError e) {
-                context.drawCenteredTextWithShadow(MinecraftClient.getInstance().textRenderer, "§e" + (ID+1), x, y, 0xFFFFFFFF);
+                context.drawCenteredTextWithShadow(MinecraftClient.getInstance().textRenderer, "§e" + ID, x, y, 0xFFFFFFFF);
                 context.drawCenteredTextWithShadow(MinecraftClient.getInstance().textRenderer, "§a" + name, x + 10, y, 0xFFFFFFFF);
-                context.drawCenteredTextWithShadow(MinecraftClient.getInstance().textRenderer, FavoriteList.contains(name) ? "§b" + note : note, x + 50, y, 0xFFFFFFFF);
-                context.drawCenteredTextWithShadow(MinecraftClient.getInstance().textRenderer, "§7" + timestamp, x + 175, y, 0xFFFFFFFF);
+                context.drawCenteredTextWithShadow(MinecraftClient.getInstance().textRenderer, (favorite.contains(name) ? "§b" : "") + teleportPoint.note, x + 50, y, 0xFFFFFFFF);
+                context.drawCenteredTextWithShadow(MinecraftClient.getInstance().textRenderer, "§7" + teleportPoint.createdAt, x + 175, y, 0xFFFFFFFF);
             }
             TeleportButton.setX(x + 245);
             TeleportButton.setY(y - 5);
@@ -296,10 +205,34 @@ public class hawClient implements ClientModInitializer {
 
     public static class TeleportListWidget extends ElementListWidget<TeleportEntry> {
         public TeleportListWidget(MinecraftClient minecraftClient, int width, int height) {
-            super(minecraftClient, width, height - 50, 30, 25);//, 10);
-
-            for (int i=0; i<DisplayList.size(); i++) {
-                addEntry(new TeleportEntry(i));
+            super(minecraftClient, width, height - 50, 30, 25);
+            i = 1;
+            if (type) {
+                HomeAndWarpClient.warp.forEach((key, value) -> {
+                    if (favorite.contains(key)) {
+                        addEntry(new TeleportEntry(i, key, value));
+                        i++;
+                    }
+                });
+                HomeAndWarpClient.warp.forEach((key, value) -> {
+                    if (!favorite.contains(key)) {
+                        addEntry(new TeleportEntry(i, key, value));
+                        i++;
+                    }
+                });
+            } else {
+                HomeAndWarpClient.home.forEach((key, value) -> {
+                    if (favorite.contains(key)) {
+                        addEntry(new TeleportEntry(i, key, value));
+                        i++;
+                    }
+                });
+                HomeAndWarpClient.home.forEach((key, value) -> {
+                    if (!favorite.contains(key)) {
+                        addEntry(new TeleportEntry(i, key, value));
+                        i++;
+                    }
+                });
             }
         }
 
