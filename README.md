@@ -1,8 +1,6 @@
-newtech分支搭配
-https://github.com/ThePlayer453403/HAW
-可以直接获取数据
+现在可以直接从服务器获取数据
 
-但不兼容原版HAW
+但不兼容原版HAW，需要使用这个分支：https://github.com/ThePlayer453403/HAW
 
 ---
 
