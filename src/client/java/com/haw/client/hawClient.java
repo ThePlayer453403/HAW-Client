@@ -208,6 +208,7 @@ public class hawClient implements ClientModInitializer {
             super(minecraftClient, width, height - 50, 30, 25);
             i = 1;
             if (type) {
+                if (HomeAndWarpClient.warp == null) {return;}
                 HomeAndWarpClient.warp.forEach((key, value) -> {
                     if (favorite.contains(key)) {
                         addEntry(new TeleportEntry(i, key, value));
@@ -221,6 +222,7 @@ public class hawClient implements ClientModInitializer {
                     }
                 });
             } else {
+                if (HomeAndWarpClient.home == null) {return;}
                 HomeAndWarpClient.home.forEach((key, value) -> {
                     if (favorite.contains(key)) {
                         addEntry(new TeleportEntry(i, key, value));
